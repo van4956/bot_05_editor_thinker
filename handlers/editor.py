@@ -16,7 +16,7 @@ from aiogram.filters import StateFilter, or_f
 from aiogram.types import Message
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from openai import OpenAI
 from filters.is_admin import IsAdminListFilter
@@ -37,19 +37,40 @@ class Editor(StatesGroup):
 # Получаем API ключ для работы с OpenAI
 API_GPT = load_config().tg_bot.api_gpt
 
+# Инициализируем клиент OpenAI
+client = OpenAI(api_key=API_GPT)
+
+
+# Функция очистки старых файлов
+async def cleanup_temp_files():
+    """Удаляет временные файлы старше 1 часа"""
+    try:
+        voice_dir = Path("temp_voice")
+        if not voice_dir.exists():
+            return
+
+        current_time = datetime.now()
+        for file in voice_dir.glob("*.ogg"):
+            file_time = datetime.fromtimestamp(file.stat().st_mtime)
+            if current_time - file_time > timedelta(hours=1):
+                file.unlink(missing_ok=True)
+                logger.info("Удален старый временный файл: %s", file)
+    except Exception as e:
+        logger.error("Ошибка при очистке временных файлов: %s", e)
+
+
 # Функция исправления грамматики и пунктуации текста через GPT
 async def fix_text_style(text: str) -> str:
     """Функция исправления грамматики и пунктуации текста через GPT"""
     try:
-        client = OpenAI(api_key=API_GPT)
-
         system_prompt = """Ты опытный редактор текста. Твоя задача:
                             1. Исправить грамматические и пунктуационные ошибки
                             2. Обеспечить правильное написание заглавных букв (начало предложений, имена собственные)
                             3. Расставить корректные знаки препинания
                             4. НЕ менять порядок слов и смысл текста
                             5. НЕ добавлять новую информацию
-                            6. Сохранить исходный стиль автора"""
+                            6. НЕ писать ни чего от себя
+                            7. Сохранить исходный стиль автора"""
 
         response = await asyncio.to_thread(
             client.chat.completions.create,
@@ -73,15 +94,14 @@ async def fix_text_style(text: str) -> str:
 async def rephrase_text(text: str) -> str:
     """Переформулирует текст, делая его более лаконичным и литературным."""
     try:
-        client = OpenAI(api_key=API_GPT)
-
         system_prompt = """Ты опытный литературный редактор. Твоя задача:
                             1. Переформулировать текст, сделав его более лаконичным и литературным
                             2. Улучшить стиль изложения, сохраняя естественность речи
                             3. Исправить грамматические и пунктуационные ошибки
                             4. Сохранить основной смысл, идею и посыл текста
                             5. НЕ добавлять новую информацию или факты
-                            6. НЕ менять эмоциональный окрас текста"""
+                            6. НЕ менять эмоциональный окрас текста
+                            7. НЕ писать ни чего от себя"""
 
         response = await asyncio.to_thread(
             client.chat.completions.create,
@@ -104,6 +124,9 @@ async def rephrase_text(text: str) -> str:
 
 @editor_router.message(Editor.editor_wait_command, F.text)
 async def editor_wait_command(message: Message, state: FSMContext, bot: Bot):
+    # Очищаем старые временные файлы
+    await cleanup_temp_files()
+
     if message.text == "↗️ Добавить":
         await message.answer("Ожидаю текст, или войс.", reply_markup=keyboard.del_kb)
         await state.set_state(Editor.editor_wait_text)
@@ -240,7 +263,7 @@ async def editor_wait_text(message: Message, state: FSMContext, bot: Bot):
             logger.info("Скачан файл голосового сообщения: %s", voice_path)
 
             # Инициализируем клиент OpenAI
-            client = OpenAI(api_key=API_GPT)
+            # client = OpenAI(api_key=API_GPT)
 
             # Транскрибируем аудио
             with open(voice_path, "rb") as audio_file:

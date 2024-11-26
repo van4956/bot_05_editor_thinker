@@ -6,6 +6,7 @@ logger = logging.getLogger(__name__)
 
 
 import asyncio
+import psutil
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.strategy import FSMStrategy
@@ -36,6 +37,7 @@ bot = Bot(token=config.tg_bot.token,
 bot.owner = config.tg_bot.owner
 bot.admin_list = config.tg_bot.admin_list
 bot.home_group = config.tg_bot.home_group
+bot.work_group = config.tg_bot.work_group
 
 
 dp = Dispatcher(fsm_strategy=FSMStrategy.USER_IN_CHAT, storage=storage)
@@ -64,6 +66,7 @@ ALLOWED_UPDATES = dp.resolve_used_update_types()  # Отбираем тольк�
 async def on_startup():
     bot_info = await bot.get_me()
     bot_username = bot_info.username
+    bot.username = bot_username
     await bot.send_message(chat_id = bot.home_group[0], text = f"🤖  @{bot_username}  -  запущен!")
 
 # Функция сработает при остановке работы бота
@@ -72,6 +75,23 @@ async def on_shutdown():
     bot_username = bot_info.username
     await bot.send_message(chat_id = bot.home_group[0], text = f"☠️  @{bot_username}  -  деактивирован!")
 
+# Функция мониторинга
+async def monitor_resources():
+    """Мониторит использование ресурсов и логирует при превышении лимитов"""
+    try:
+        process = psutil.Process()
+        memory_usage = process.memory_info().rss / 1024 / 1024  # Конвертация в МБ
+
+        if memory_usage > config.memory_limit:
+            logger.warning("Высокое потребление памяти: %.2fMB (лимит: %sMB)", memory_usage, config.memory_limit)
+
+        # Логируем использование CPU
+        cpu_percent = process.cpu_percent(interval=1)
+        if cpu_percent > 80:
+            logger.warning("Высокая загрузка CPU: %s%%", cpu_percent)
+
+    except Exception as e:
+        logger.error("Ошибка мониторинга ресурсов: %s", e)
 
 # Главная функция конфигурирования и запуска бота
 async def main() -> None:
@@ -95,6 +115,16 @@ async def main() -> None:
         await dp.start_polling(bot,
                                allowed_updates=ALLOWED_UPDATES,)
                             #    skip_updates=False)  # Если бот будет обрабатывать платежи, НЕ пропускаем обновления!
+
+        while True:
+            await monitor_resources()
+            await asyncio.sleep(300)  # Проверка каждые 5 минут
+
+    except Exception as e:
+        logger.error("Критическая ошибка в main: %s", e)
+        await bot.send_message(chat_id=bot.home_group[0],
+                                text=f"⚠️ Критическая ошибка бота @<b>{bot.username}</b>: {e}")
+
     finally:
         await bot.session.close()
 
