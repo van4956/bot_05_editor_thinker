@@ -7,6 +7,7 @@ logger.info("Загружен модуль: %s", __name__)
 
 from dataclasses import dataclass
 from environs import Env
+import json
 
 
 @dataclass
@@ -19,6 +20,7 @@ class TgBot:
     admin_list: list[int]
     home_group: list[int]
     work_group: list[int]
+    channels: dict[str, int]
     api_gpt: str
 
 
@@ -39,6 +41,8 @@ def load_config(path: str | None = None) -> Config:
     admin_list = map(int, env('ADMIN_LIST').split(','))
     home_group = map(int, env('HOME_GROUP').split(','))
     work_group = map(int, env('WORK_GROUP').split(','))
+    channels_str = env('CHANNELS')
+    channels = json.loads(channels_str)
 
     return Config(
         tg_bot=TgBot(
@@ -47,6 +51,7 @@ def load_config(path: str | None = None) -> Config:
             admin_list=list(admin_list),
             home_group=list(home_group),
             work_group=list(work_group),
+            channels=channels,
             api_gpt=env('API_GPT')
             )
         )

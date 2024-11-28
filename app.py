@@ -4,9 +4,8 @@ import logging
 logging.basicConfig(level=logging.INFO, format='  -  [%(asctime)s] #%(levelname)-5s -  %(name)s:%(lineno)d  -  %(message)s')
 logger = logging.getLogger(__name__)
 
-
 import asyncio
-import psutil
+import psutil # этот модуль позволяет получать информацию о системе, такую как использование памяти и CPU
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.strategy import FSMStrategy
@@ -44,10 +43,8 @@ dp = Dispatcher(fsm_strategy=FSMStrategy.USER_IN_CHAT, storage=storage)
 
 
 # Помещаем нужные объекты в workflow_data диспетчера
-some_var_1 = 1
-some_var_2 = 'Some text'
-dp.workflow_data.update({'my_int_var': some_var_1,
-                         'my_text_var': some_var_2})
+chanel_dict = config.tg_bot.channels
+dp.workflow_data.update({'chanel_dict': chanel_dict})
 
 # Подключаем мидлвари
 dp.update.outer_middleware(counter.CounterMiddleware())  # простой счетчик

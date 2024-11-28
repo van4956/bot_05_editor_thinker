@@ -5,18 +5,15 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.info("Загружен модуль: %s", __name__)
 
-from icecream import ic
-ic.configureOutput(includeContext=True, prefix=' >>> Debag >>> ')
-
-
 import asyncio
+from datetime import datetime, timedelta
 from pathlib import Path
 from aiogram import Router, F, Bot
 from aiogram.filters import StateFilter, or_f
-from aiogram.types import Message
+from aiogram.types import Message, InlineKeyboardButton, CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from datetime import datetime, timedelta
 
 from openai import OpenAI
 from filters.is_admin import IsAdminListFilter
@@ -33,7 +30,7 @@ class Editor(StatesGroup):
     """Класс состояний для Editor"""
     editor_wait_command = State()
     editor_wait_text = State()
-
+    editor_wait_channel = State()
 # Получаем API ключ для работы с OpenAI
 API_GPT = load_config().tg_bot.api_gpt
 
@@ -123,7 +120,7 @@ async def rephrase_text(text: str) -> str:
 
 
 @editor_router.message(Editor.editor_wait_command, F.text)
-async def editor_wait_command(message: Message, state: FSMContext, bot: Bot):
+async def editor_wait_command(message: Message, state: FSMContext, bot: Bot, chanel_dict: dict):
     # Очищаем старые временные файлы
     await cleanup_temp_files()
 
@@ -138,7 +135,7 @@ async def editor_wait_command(message: Message, state: FSMContext, bot: Bot):
         await state.update_data(text=[text])
         await message.answer(f"⏺️ Объединенный текст:\n\n<code>{text}</code>", reply_markup=keyboard.work_keyboard())
         await state.set_state(Editor.editor_wait_command)
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         await message.answer("Ожидаю команду ⬇️")
 
     elif message.text == "🔄 Переформулировать 🔄":
@@ -164,7 +161,7 @@ async def editor_wait_command(message: Message, state: FSMContext, bot: Bot):
             # Отправляем переформулированный текст
             await message.answer(f"🔄 Переформулированный текст:\n\n<code>{rephrased_text}</code>",
                                  reply_markup=keyboard.work_keyboard())
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
             await message.answer("Ожидаю команду ⬇️")
 
         except Exception as e:
@@ -194,7 +191,7 @@ async def editor_wait_command(message: Message, state: FSMContext, bot: Bot):
             # Отправляем исправленный текст
             await message.answer(f"ℹ️ Исправленный текст:\n\n<code>{fixed_text}</code>",
                                  reply_markup=keyboard.work_keyboard())
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
             await message.answer("Ожидаю команду ⬇️")
 
         except Exception as e:
@@ -208,19 +205,64 @@ async def editor_wait_command(message: Message, state: FSMContext, bot: Bot):
         await message.answer("Ожидаю текст, или войс.")
 
     elif message.text == "✅ Отправить":
+        inline_channels_keyboard = InlineKeyboardBuilder()
+        await message.answer('Выберите канал для отправки', reply_markup=keyboard.del_kb)
+        await asyncio.sleep(1)
+        for text, data in chanel_dict.items():
+            btn = "btn_" + data
+            inline_channels_keyboard.add(InlineKeyboardButton(text=text, callback_data=btn))
+        inline_channels_keyboard.add(InlineKeyboardButton(text="❌ Отменить", callback_data="btn_cancel"))
+        await message.answer('Доступные каналы:', reply_markup=inline_channels_keyboard.adjust(1,1,1,1).as_markup())
+        await state.set_state(Editor.editor_wait_channel)
+
+    else:
+        await message.answer("Неизвестная команда.\nНажми на кнопку ⬇️", reply_markup=keyboard.work_keyboard())
+
+
+@editor_router.callback_query(Editor.editor_wait_channel, F.data.startswith("btn_"))
+async def editor_wait_channel(callback: CallbackQuery, state: FSMContext, bot: Bot, chanel_dict: dict):
+    channel_data = callback.data.split('_')[1]
+    channel_name = [k for k, v in chanel_dict.items() if v == channel_data]
+    if channel_data == "cancel":
+        await callback.message.delete()
+        await callback.message.answer("❌ Отправка отменена", reply_markup=keyboard.del_kb)
+        data = await state.get_data()
+        text = data.get('text',[])
+        await callback.message.answer(f"✍️ Ты написал:\n\n<code>{text}</code>")
+        await state.set_state(Editor.editor_wait_command)
+        await asyncio.sleep(1)
+        await callback.message.answer("Ожидаю команду ⬇️", reply_markup=keyboard.work_keyboard())
+    else:
+        channel_id = int(channel_data)
         data = await state.get_data()
         current_time = datetime.now().strftime("%d.%m.%Y")
         list_text = data.get('text',[])
         text = current_time + '\n\n' + '\n'.join(list_text)
-        chat_id = bot.work_group[0]
-        await bot.send_message(chat_id = chat_id, text = text)
-        await message.answer("✅ Текст отправлен в чат", reply_markup=keyboard.del_kb)
-        await state.clear()
-        await asyncio.sleep(2)
-        await message.answer("Ожидаю текст, или войс.")
+        try:
+            # Проверяем существование чата
+            chat = await bot.get_chat(chat_id=channel_id)
+            print(f"Chat found: {chat.title} (ID: {chat.id})")
 
-    else:
-        await message.answer("Неизвестная команда.\nНажми на кнопку ⬇️", reply_markup=keyboard.work_keyboard())
+            # Проверяем права бота
+            bot_member = await bot.get_chat_member(chat_id=channel_id, user_id=bot.id)
+            print(f"Bot rights: {bot_member.status}")
+
+            # Пробуем отправить сообщение
+            message = await bot.send_message(chat_id=channel_id, text=text)
+            print(f"Message sent successfully: {message.message_id}")
+
+        except Exception as e:
+            print(f"Error details: {type(e).__name__}: {str(e)}")
+            await callback.message.answer(f"❌ Ошибка отправки:\n\n<code>{str(e)}</code>", reply_markup=keyboard.del_kb)
+
+
+        await callback.message.delete()
+        await callback.message.answer(f"✅ Текст отправлен в <b>{channel_name[0]}</b>", reply_markup=keyboard.del_kb)
+        await state.clear()
+        await asyncio.sleep(1)
+        await callback.message.answer("Ожидаю текст, или войс.", reply_markup=keyboard.del_kb)
+        await state.set_state(Editor.editor_wait_text)
+
 
 # Обработка неизвестных команд
 @editor_router.message(Editor.editor_wait_command)
@@ -238,7 +280,7 @@ async def editor_wait_text(message: Message, state: FSMContext, bot: Bot):
         await message.answer(f"✍️ Ты написал:\n\n<code>{message.text}</code>",
                          reply_markup=keyboard.work_keyboard())
         await state.set_state(Editor.editor_wait_command)
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         await message.answer("Ожидаю команду ⬇️")
 
     elif message.voice:
@@ -286,7 +328,7 @@ async def editor_wait_text(message: Message, state: FSMContext, bot: Bot):
             await message.answer(f"🔍 Распознанный текст:\n\n<code>{transcribed_text}</code>",
                                 reply_markup=keyboard.work_keyboard())
             await state.set_state(Editor.editor_wait_command)
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
             await message.answer("Ожидаю команду ⬇️")
 
         except Exception as e:

@@ -5,8 +5,8 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.info("Загружен модуль: %s", __name__)
 
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, KeyboardButtonPollType
-from aiogram.utils.keyboard import ReplyKeyboardBuilder
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, KeyboardButtonPollType, InlineKeyboardButton
+from aiogram.utils.keyboard import ReplyKeyboardBuilder, InlineKeyboardBuilder
 
 
 # Удаление клавиатуры
@@ -54,3 +54,17 @@ def work_keyboard():
                         "❌ Отменить", "✅ Отправить",
                         sizes=(2,1,1,2,1),
                         placeholder='⬇️')
+
+# создать обычные inline кнопки с отображаемым текстом
+def get_callback_btns(*, # запрет на передачу неименованных аргументов
+                      btns: dict[str, str], # передаем словарик text:data, text то что будет отображаться в боте, data то что отправится внутри
+                      sizes: tuple = (2,)): # кортеж, разметка кнопок
+    """создать обычные кнопки с отображаемым текстом"""
+
+    keyboard = InlineKeyboardBuilder()
+
+    for text, data in btns.items():
+        btn = "btn_" + data
+        keyboard.add(InlineKeyboardButton(text=text, callback_data=btn)) # событие callback_data
+
+    return keyboard.adjust(*sizes).as_markup()

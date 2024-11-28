@@ -5,8 +5,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 logger.info("Загружен модуль: %s", __name__)
 
-from icecream import ic
-ic.configureOutput(includeContext=True, prefix=' >>> Debag >>> ')
 
 import asyncio
 from aiogram import F, Router, Bot
