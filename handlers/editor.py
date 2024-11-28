@@ -120,7 +120,7 @@ async def rephrase_text(text: str) -> str:
 
 
 @editor_router.message(Editor.editor_wait_command, F.text)
-async def editor_wait_command(message: Message, state: FSMContext, bot: Bot, chanel_dict: dict):
+async def editor_wait_command(message: Message, state: FSMContext, chanel_dict: dict):
     # Очищаем старые временные файлы
     await cleanup_temp_files()
 
