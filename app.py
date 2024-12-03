@@ -64,13 +64,19 @@ async def on_startup():
     bot_info = await bot.get_me()
     bot_username = bot_info.username
     bot.username = bot_username
-    await bot.send_message(chat_id = bot.home_group[0], text = f"🤖  @{bot_username}  -  запущен!")
+    try:
+        await bot.send_message(chat_id = bot.home_group[0], text = f"🤖  @{bot_username}  -  запущен!")
+    except Exception as e:
+        logger.error("Ошибка при отправке сообщения при запуске бота: %s", e)
 
 # Функция сработает при остановке работы бота
 async def on_shutdown():
     bot_info = await bot.get_me()
     bot_username = bot_info.username
-    await bot.send_message(chat_id = bot.home_group[0], text = f"☠️  @{bot_username}  -  деактивирован!")
+    try:
+        await bot.send_message(chat_id = bot.home_group[0], text = f"☠️  @{bot_username}  -  деактивирован!")
+    except Exception as e:
+        logger.error("Ошибка при отправке сообщения при остановке бота: %s", e)
 
 # Функция мониторинга
 async def monitor_resources():

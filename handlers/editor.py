@@ -233,12 +233,13 @@ async def editor_wait_channel(callback: CallbackQuery, state: FSMContext, bot: B
         await asyncio.sleep(1)
         await callback.message.answer("Ожидаю команду ⬇️", reply_markup=keyboard.work_keyboard())
     else:
-        channel_id = int(channel_data)
-        data = await state.get_data()
-        current_time = datetime.now().strftime("%d.%m.%Y")
-        list_text = data.get('text',[])
-        text = current_time + '\n\n' + '\n'.join(list_text)
         try:
+            channel_id = int(channel_data)
+            data = await state.get_data()
+            current_time = datetime.now().strftime("%d.%m.%Y")
+            list_text = data.get('text',[])
+            text = current_time + '\n\n' + '\n'.join(list_text)
+
             # Проверяем существование чата
             chat = await bot.get_chat(chat_id=channel_id)
             print(f"Chat found: {chat.title} (ID: {chat.id})")
@@ -254,7 +255,7 @@ async def editor_wait_channel(callback: CallbackQuery, state: FSMContext, bot: B
         except Exception as e:
             print(f"Error details: {type(e).__name__}: {str(e)}")
             await callback.message.answer(f"❌ Ошибка отправки:\n\n<code>{str(e)}</code>", reply_markup=keyboard.del_kb)
-
+            return
 
         await callback.message.delete()
         await callback.message.answer(f"✅ Текст отправлен в <b>{channel_name[0]}</b>", reply_markup=keyboard.del_kb)
