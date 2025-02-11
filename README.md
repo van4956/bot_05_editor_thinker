@@ -1,16 +1,16 @@
 # Editor Thinker
 
-*Telegram-бот для редактирования и управления текстовыми сообщениями с использованием GPT.*
+A Telegram bot for editing and managing text messages using GPT.
 
-## Возможности
+## Features
 
-- ✍️ Редактирование текста с помощью GPT
-- 🎤 Транскрибация голосовых сообщений в текст
-- 📝 Исправление грамматики и пунктуации
-- 🔄 Переформулирование текста
-- 📨 Отправка сообщений в каналы
+- ✍️ Text editing using GPT
+- 🎤 Voice message transcription to text
+- 📝 Grammar and punctuation correction
+- 🔄 Text rephrasing
+- 📨 Sending messages to channels
 
-## Требования
+## Requirements
 - Python 3.9+
 - aiogram 3.x
-- OpenAI API ключ
+- OpenAI API key
